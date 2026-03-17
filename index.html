@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishDetect — Multimodal Phishing Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0a0c0f;
+    --bg2:     #111418;
+    --bg3:     #171c23;
+    --border:  rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text:    #e8eaf0;
+    --muted:   #6b7280;
+    --accent:  #00d4ff;
+    --accent2: #7c3aed;
+    --danger:  #ef4444;
+    --warn:    #f59e0b;
+    --safe:    #10b981;
+    --fh: 'Syne', sans-serif;
+    --fm: 'JetBrains Mono', monospace;
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--fm);
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  /* ── LAYOUT ─────────────────────────────────────────────── */
+  .app { display: grid; grid-template-rows: 57px 1fr; height: 100vh; }
+
+  /* ── HEADER ─────────────────────────────────────────────── */
+  .header {
+    padding: 0 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg2);
+  }
+
+  .logo { display: flex; align-items: center; gap: 10px; }
+
+  .logo-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center; font-size: 16px;
+  }
+
+  .logo-text { font-family: var(--fh); font-size: 15px; font-weight: 700; letter-spacing: -.3px; }
+  .logo-text span { color: var(--accent); }
+
+  .pill {
+    font-size: 10px; color: var(--muted); background: var(--bg3);
+    padding: 4px 10px; border-radius: 20px; border: 1px solid var(--border);
+  }
+
+  .status {
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--muted);
+  }
+
+  .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--safe);
+    animation: blink 2s infinite;
+  }
+
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* ── MAIN GRID ───────────────────────────────────────────── */
+  .main {
+    display: grid; grid-template-columns: 340px 1fr;
+    height: calc(100vh - 57px); overflow: hidden;
+  }
+
+  /* ── LEFT PANEL ─────────────────────────────────────────── */
+  .left {
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    display: flex; flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .panel-title {
+    padding: 14px 20px 12px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--fh); font-size: 11px; font-weight: 600;
+    letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  }
+
+  .section { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+
+  .label {
+    font-size: 10px; font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+  }
+
+  /* Mode tabs */
+  .tabs {
+    display: flex; gap: 4px; margin-bottom: 14px;
+    background: var(--bg3); padding: 3px; border-radius: 8px;
+  }
+
+  .tab {
+    flex: 1; padding: 6px; border-radius: 6px; border: none;
+    background: transparent; color: var(--muted);
+    font-family: var(--fm); font-size: 11px; cursor: pointer; transition: all .15s;
+  }
+
+  .tab.active { background: var(--bg2); color: var(--text); border: 1px solid var(--border2); }
+
+  textarea {
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: var(--fm);
+    font-size: 12px; padding: 12px; resize: vertical; line-height: 1.6;
+    outline: none; transition: border-color .15s; min-height: 130px;
+  }
+
+  textarea:focus { border-color: var(--accent2); }
+  textarea::placeholder { color: var(--muted); opacity: .6; }
+
+  /* Meta fields */
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+
+  .field label {
+    font-size: 10px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+
+  .field input {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-family: var(--fm); font-size: 12px;
+    padding: 7px 10px; outline: none; transition: border-color .15s;
+  }
+
+  .field input:focus { border-color: var(--accent2); }
+
+  /* Analyze button */
+  .btn-analyze {
+    margin: 16px 20px 20px; width: calc(100% - 40px); padding: 12px;
+    background: linear-gradient(135deg, var(--accent2), #6d28d9);
+    border: none; border-radius: 8px; color: #fff;
+    font-family: var(--fh); font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all .15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+
+  .btn-analyze:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124,58,237,.4); }
+  .btn-analyze:active { transform: scale(.98); }
+  .btn-analyze:disabled { opacity: .45; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* Sample buttons */
+  .samples { display: flex; flex-direction: column; gap: 6px; }
+
+  .sample {
+    padding: 8px 12px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--muted); font-family: var(--fm);
+    font-size: 11px; cursor: pointer; transition: all .15s;
+    text-align: left; display: flex; align-items: center; gap: 8px;
+  }
+
+  .sample:hover { border-color: var(--border2); color: var(--text); background: var(--bg); }
+
+  .badge {
+    font-size: 9px; padding: 2px 6px; border-radius: 3px;
+    font-weight: 600; letter-spacing: .04em; flex-shrink: 0;
+  }
+
+  .badge-p { background: rgba(239,68,68,.15);  color: var(--danger); }
+  .badge-s { background: rgba(245,158,11,.15); color: var(--warn); }
+  .badge-l { background: rgba(16,185,129,.15); color: var(--safe); }
+
+  /* ── RIGHT PANEL ─────────────────────────────────────────── */
+  .right { overflow-y: auto; display: flex; flex-direction: column; }
+
+  /* Empty state */
+  .empty {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 16px; color: var(--muted); padding: 40px; text-align: center;
+  }
+
+  .empty-icon {
+    width: 64px; height: 64px; border-radius: 18px;
+    background: var(--bg3); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center; font-size: 28px;
+  }
+
+  .empty-title { font-family: var(--fh); font-size: 16px; color: var(--text); opacity: .45; }
+  .empty-sub   { font-size: 12px; max-width: 260px; line-height: 1.7; }
+
+  /* Loading */
+  .loading {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 28px; padding: 40px;
+  }
+
+  .spinner {
+    width: 72px; height: 72px; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .8s linear infinite; position: relative;
+  }
+
+  .spinner::after {
+    content: '🔍'; position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%,-50%); font-size: 22px;
+    animation: cspin .8s linear infinite;
+  }
+
+  @keyframes spin  { to { transform: rotate(360deg); } }
+  @keyframes cspin { to { transform: translate(-50%,-50%) rotate(-360deg); } }
+
+  .steps { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 320px; }
+
+  .step {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 6px; font-size: 11px; color: var(--muted); transition: all .3s;
+  }
+
+  .step.active { border-color: var(--accent2); color: var(--text); }
+  .step.done   { border-color: rgba(16,185,129,.3); color: var(--safe); }
+
+  .step-num {
+    width: 18px; height: 18px; border-radius: 50%;
+    background: var(--bg3); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; flex-shrink: 0;
+  }
+
+  .step.active .step-num { background: rgba(124,58,237,.2); border-color: var(--accent2); animation: blink 1s infinite; }
+  .step.done   .step-num { background: rgba(16,185,129,.2); border-color: var(--safe); }
+
+  /* ── RESULT ───────────────────────────────────────────────── */
+
+  /* Verdict banner */
+  .verdict-banner {
+    padding: 24px 28px; display: flex; align-items: center; gap: 20px;
+    border-bottom: 1px solid var(--border); position: relative; overflow: hidden;
+  }
+
+  .verdict-banner::before { content: ''; position: absolute; inset: 0; opacity: .06; }
+  .verdict-banner.phish::before { background: var(--danger); }
+  .verdict-banner.safe::before  { background: var(--safe); }
+  .verdict-banner.sus::before   { background: var(--warn); }
+
+  .v-icon {
+    width: 52px; height: 52px; border-radius: 14px; font-size: 24px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+
+  .phish  .v-icon { background: rgba(239,68,68,.15);  border: 1px solid rgba(239,68,68,.3); }
+  .safe   .v-icon { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.3); }
+  .sus    .v-icon { background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.3); }
+
+  .v-info  { flex: 1; }
+  .v-tag   { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
+  .v-title { font-family: var(--fh); font-size: 20px; font-weight: 800; }
+  .v-sub   { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .phish .v-tag { color: var(--danger); }
+  .safe  .v-tag { color: var(--safe); }
+  .sus   .v-tag { color: var(--warn); }
+
+  /* Confidence ring */
+  .ring { width: 64px; height: 64px; flex-shrink: 0; position: relative; }
+  .ring svg { transform: rotate(-90deg); }
+
+  .ring-label {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: var(--fh); font-size: 14px; font-weight: 700;
+  }
+
+  .ring-label small { font-size: 9px; color: var(--muted); font-weight: 400; font-family: var(--fm); }
+
+  /* Signals */
+  .signals-wrap { padding: 20px 28px; border-bottom: 1px solid var(--border); }
+  .block-title  { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 14px; }
+
+  .signal {
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px;
+  }
+
+  .signal:last-child { margin-bottom: 0; }
+
+  .sig-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+  .sig-icon.r { background: rgba(239,68,68,.12); }
+  .sig-icon.w { background: rgba(245,158,11,.12); }
+  .sig-icon.g { background: rgba(16,185,129,.12); }
+
+  .sig-body { flex: 1; }
+  .sig-name { font-size: 12px; color: var(--text); margin-bottom: 2px; }
+  .sig-desc { font-size: 11px; color: var(--muted); }
+
+  .sig-score { font-family: var(--fh); font-size: 13px; font-weight: 700; min-width: 36px; text-align: right; }
+  .sc-r { color: var(--danger); }
+  .sc-w { color: var(--warn); }
+  .sc-g { color: var(--safe); }
+
+  /* Tokens */
+  .tokens-wrap {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    padding: 16px 28px; border-bottom: 1px solid var(--border);
+  }
+
+  .tok { padding: 3px 9px; border-radius: 4px; font-size: 11px; border: 1px solid transparent; }
+  .tok.neutral    { background: var(--bg2); border-color: var(--border); color: var(--muted); }
+  .tok.suspicious { background: rgba(245,158,11,.12); border-color: rgba(245,158,11,.3); color: var(--warn); }
+  .tok.phishing   { background: rgba(239,68,68,.12);  border-color: rgba(239,68,68,.3);  color: var(--danger); }
+  .tok.safe       { background: rgba(16,185,129,.12); border-color: rgba(16,185,129,.3); color: var(--safe); }
+
+  /* IOC cards */
+  .ioc-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr);
+    gap: 8px; padding: 20px 28px; border-bottom: 1px solid var(--border);
+  }
+
+  .ioc-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .ioc-lbl  { font-size: 9px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 6px; }
+  .ioc-val  { font-size: 11px; color: var(--text); word-break: break-all; }
+  .ioc-val.d { color: var(--danger); }
+  .ioc-val.w { color: var(--warn); }
+
+  /* Recommendation */
+  .rec-wrap { padding: 20px 28px 28px; }
+
+  .rec-box { border-radius: 8px; padding: 16px; font-size: 12px; line-height: 1.75; border: 1px solid; }
+  .rec-box.phish { background: rgba(239,68,68,.07);  border-color: rgba(239,68,68,.25);  color: #fca5a5; }
+  .rec-box.safe  { background: rgba(16,185,129,.07); border-color: rgba(16,185,129,.25); color: #6ee7b7; }
+  .rec-box.sus   { background: rgba(245,158,11,.07); border-color: rgba(245,158,11,.25); color: #fcd34d; }
+
+  .rec-head { font-family: var(--fh); font-size: 12px; font-weight: 700; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* Error banner */
+  .error-banner {
+    margin: 24px 28px; padding: 14px 16px;
+    background: rgba(239,68,68,.08); border: 1px solid rgba(239,68,68,.3);
+    border-radius: 8px; font-size: 12px; color: #fca5a5;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">🛡️</div>
+      <div class="logo-text">Phish<span>Detect</span></div>
+    </div>
+    <div class="pill">MULTIMODAL AI ENGINE</div>
+    <div class="status"><div class="dot"></div>System online</div>
+  </header>
+
+  <div class="main">
+
+    <!-- ── LEFT: INPUT ── -->
+    <aside class="left">
+      <div class="panel-title">Detection Input</div>
+
+      <div class="section">
+        <div class="label">Analysis Mode</div>
+        <div class="tabs">
+          <button class="tab active" onclick="setMode('email',this)">Email</button>
+          <button class="tab"        onclick="setMode('url',this)">URL</button>
+          <button class="tab"        onclick="setMode('sms',this)">SMS</button>
+        </div>
+        <textarea id="mainInput" rows="6"
+          placeholder="Paste email body, URL, or SMS to analyze..."></textarea>
+      </div>
+
+      <div class="section" id="metaSection">
+        <div class="label">Metadata</div>
+        <div class="meta">
+          <div class="field">
+            <label>Sender</label>
+            <input type="text" id="senderInput" placeholder="sender@domain.com">
+          </div>
+          <div class="field">
+            <label>Subject</label>
+            <input type="text" id="subjectInput" placeholder="Email subject">
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="label">Load Sample</div>
+        <div class="samples">
+          <button class="sample" onclick="loadSample('phish1')">
+            <span class="badge badge-p">PHISHING</span>Bank account suspension threat
+          </button>
+          <button class="sample" onclick="loadSample('phish2')">
+            <span class="badge badge-p">PHISHING</span>Prize winner notification
+          </button>
+          <button class="sample" onclick="loadSample('sus')">
+            <span class="badge badge-s">SUSPICIOUS</span>Password reset request
+          </button>
+          <button class="sample" onclick="loadSample('safe')">
+            <span class="badge badge-l">LEGITIMATE</span>Newsletter subscription
+          </button>
+        </div>
+      </div>
+
+      <button class="btn-analyze" id="analyzeBtn" onclick="runAnalysis()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+          <circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/>
+        </svg>
+        Analyze for Threats
+      </button>
+    </aside>
+
+    <!-- ── RIGHT: OUTPUT ── -->
+    <main class="right" id="output">
+      <div class="empty">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">No analysis yet</div>
+        <div class="empty-sub">Paste content or load a sample, then click Analyze for Threats.</div>
+      </div>
+    </main>
+
+  </div>
+</div>
+
+<script>
+  /* ── SAMPLE DATA ─────────────────────────────────────────── */
+  const SAMPLES = {
+    phish1: {
+      mode: 'email',
+      sender:  'security-alert@bankofamerica-secure.net',
+      subject: 'URGENT: Your account has been suspended',
+      text: `Dear Valued Customer,
+
+We have detected unusual activity on your Bank of America account. Your account has been temporarily suspended for security reasons.
+
+To restore access immediately, you must verify your identity within 24 hours or your account will be permanently closed and your funds may be at risk.
+
+Click here to verify: http://bankofamerica-secure.verify-account.xyz/login
+
+Please provide your:
+- Full name and SSN
+- Online banking username and password
+- Card number and CVV
+
+Failure to verify within 24 hours will result in permanent account closure.
+
+Bank of America Security Team`
+    },
+    phish2: {
+      mode: 'email',
+      sender:  'winner@prize-notification-2024.com',
+      subject: 'Congratulations! You have been selected as our lucky winner',
+      text: `CONGRATULATIONS!!!
+
+You have been randomly selected as the WINNER of our $1,000,000 International Lottery!
+
+Your email was chosen from 5,000,000 participants worldwide. To claim your prize you must act NOW.
+
+Send the following to claim@prize-xyz.com:
+- Your full name and address
+- Phone number and date of birth
+- A $199 processing fee via wire transfer
+
+This offer expires in 48 hours. Don't miss this once-in-a-lifetime opportunity!
+
+Dr. James Wilson
+International Prize Committee`
+    },
+    sus: {
+      mode: 'email',
+      sender:  'no-reply@accounts-google.com',
+      subject: 'Password reset request for your account',
+      text: `Hi there,
+
+We received a request to reset the password for your Google account associated with this email address.
+
+If you made this request, click the link below to reset your password:
+https://accounts-google.com/password/reset?token=abc123xyz
+
+This link will expire in 1 hour for security reasons.
+
+If you didn't request a password reset, you can ignore this email. Your password will not be changed.
+
+Google Security Team`
+    },
+    safe: {
+      mode: 'email',
+      sender:  'newsletter@medium.com',
+      subject: 'Your weekly digest from Medium',
+      text: `Hello,
+
+Here's your weekly digest of stories handpicked for you based on your reading history.
+
+Top stories this week:
+- How I built a habit tracker in 30 days
+- The future of remote work in 2025
+- Understanding machine learning: a beginner's guide
+
+View all stories at medium.com/digest
+
+To manage your email preferences, visit your account settings at medium.com/settings.
+
+Happy reading!
+The Medium Team`
+    }
+  };
+
+  /* ── STATE ───────────────────────────────────────────────── */
+  let currentMode = 'email';
+
+  /* ── HELPERS ─────────────────────────────────────────────── */
+  function setMode(mode, btn) {
+    currentMode = mode;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('metaSection').style.display = mode === 'email' ? 'block' : 'none';
+    const ph = { email: 'Paste email body to analyze...', url: 'Enter URL to analyze, e.g. https://...', sms: 'Paste SMS message content here...' };
+    document.getElementById('mainInput').placeholder = ph[mode];
+  }
+
+  function loadSample(key) {
+    const s = SAMPLES[key];
+    const tabs = document.querySelectorAll('.tab');
+    const idx  = ['email','url','sms'].indexOf(s.mode);
+    setMode(s.mode, tabs[idx]);
+    document.getElementById('mainInput').value = s.text;
+    document.getElementById('senderInput').value  = s.sender  || '';
+    document.getElementById('subjectInput').value = s.subject || '';
+  }
+
+  /* ── LOADING UI ──────────────────────────────────────────── */
+  function showLoading() {
+    const steps = [
+      'Parsing content structure',
+      'Analyzing URLs & domains',
+      'Extracting linguistic patterns',
+      'Running threat model',
+      'Generating risk assessment'
+    ];
+
+    document.getElementById('output').innerHTML = `
+      <div class="loading">
+        <div class="spinner"></div>
+        <div class="steps">
+          ${steps.map((s,i) => `
+            <div class="step" id="st${i}">
+              <div class="step-num">${i+1}</div>${s}
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    let i = 0;
+    const iv = setInterval(() => {
+      if (i > 0) {
+        const p = document.getElementById(`st${i-1}`);
+        if (p) { p.classList.remove('active'); p.classList.add('done'); p.querySelector('.step-num').textContent = '✓'; }
+      }
+      const c = document.getElementById(`st${i}`);
+      if (c) c.classList.add('active');
+      if (++i >= steps.length) clearInterval(iv);
+    }, 400);
+  }
+
+  /* ── ANALYZE ─────────────────────────────────────────────── */
+  async function runAnalysis() {
+    const text = document.getElementById('mainInput').value.trim();
+    if (!text) { alert('Please enter content to analyze.'); return; }
+
+    const btn = document.getElementById('analyzeBtn');
+    btn.disabled = true;
+    showLoading();
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode:    currentMode,
+          text,
+          sender:  document.getElementById('senderInput')?.value  || '',
+          subject: document.getElementById('subjectInput')?.value || ''
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.error || 'Server error');
+
+      renderResult(data);
+    } catch (err) {
+      document.getElementById('output').innerHTML = `
+        <div class="error-banner">
+          <strong>Analysis failed:</strong> ${err.message}
+        </div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  /* ── RENDER RESULT ───────────────────────────────────────── */
+  function renderResult(r) {
+    const vc  = r.verdict === 'phishing' ? 'phish' : r.verdict === 'suspicious' ? 'sus' : 'safe';
+    const ico = r.verdict === 'phishing' ? '🚨' : r.verdict === 'suspicious' ? '⚠️' : '✅';
+    const ttl = r.verdict === 'phishing' ? 'PHISHING DETECTED' : r.verdict === 'suspicious' ? 'SUSPICIOUS CONTENT' : 'APPEARS LEGITIMATE';
+    const clr = r.verdict === 'phishing' ? '#ef4444' : r.verdict === 'suspicious' ? '#f59e0b' : '#10b981';
+
+    const C      = 2 * Math.PI * 26;
+    const offset = C - (r.confidence / 100) * C;
+
+    const sevMap = { high:'r', medium:'w', low:'w', safe:'g' };
+    const emMap  = { high:'🔴', medium:'🟡', low:'🟠', safe:'🟢' };
+    const scMap  = { high:'sc-r', medium:'sc-w', low:'sc-w', safe:'sc-g' };
+
+    const signalsHTML = (r.signals || []).map(s => `
+      <div class="signal">
+        <div class="sig-icon ${sevMap[s.severity]||'w'}">${emMap[s.severity]||'⚪'}</div>
+        <div class="sig-body">
+          <div class="sig-name">${esc(s.name)}</div>
+          <div class="sig-desc">${esc(s.description)}</div>
+        </div>
+        <div class="sig-score ${scMap[s.severity]||'sc-w'}">${esc(s.score)}</div>
+      </div>`).join('');
+
+    const tokensHTML = (r.tokens || []).map(t =>
+      `<span class="tok ${t.classification||'neutral'}">${esc(t.word)}</span>`
+    ).join('');
+
+    const ioc = r.iocs || {};
+    const urgNum = parseInt(ioc.urgency_score) || 0;
+
+    document.getElementById('output').innerHTML = `
+      <!-- Verdict -->
+      <div class="verdict-banner ${vc}">
+        <div class="v-icon">${ico}</div>
+        <div class="v-info">
+          <div class="v-tag">${vc === 'phish' ? 'Phishing' : vc === 'sus' ? 'Suspicious' : 'Legitimate'}</div>
+          <div class="v-title">${ttl}</div>
+          <div class="v-sub">${esc(r.summary || '')}</div>
+        </div>
+        <div class="ring">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="4"/>
+            <circle cx="32" cy="32" r="26" fill="none" stroke="${clr}" stroke-width="4"
+              stroke-dasharray="${C.toFixed(2)}"
+              stroke-dashoffset="${offset.toFixed(2)}"
+              stroke-linecap="round"/>
+          </svg>
+          <div class="ring-label">${r.confidence}%<small>conf.</small></div>
+        </div>
+      </div>
+
+      <!-- Signals -->
+      <div class="signals-wrap">
+        <div class="block-title">Detection Signals</div>
+        ${signalsHTML}
+      </div>
+
+      <!-- Tokens -->
+      <div class="tokens-wrap">
+        <div style="width:100%;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px;">
+          Linguistic Token Analysis
+        </div>
+        ${tokensHTML}
+      </div>
+
+      <!-- IOCs -->
+      <div class="ioc-grid">
+        <div class="ioc-card">
+          <div class="ioc-lbl">Sender Domain</div>
+          <div class="ioc-val ${ioc.sender_domain && ioc.sender_domain !== 'N/A' ? 'd' : ''}">
+            ${esc(ioc.sender_domain || 'N/A')}
+          </div>
+        </div>
+        <div class="ioc-card">
+          <div class="ioc-lbl">URLs Detected</div>
+          <div class="ioc-val w">${esc(String(ioc.urls_found || '0'))}</div>
+        </div>
+        <div class="ioc-card">
+          <div class="ioc-lbl">Urgency Score</div>
+          <div class="ioc-val ${urgNum >= 7 ? 'd' : urgNum >= 4 ? 'w' : ''}">
+            ${urgNum}/10
+          </div>
+        </div>
+        <div class="ioc-card">
+          <div class="ioc-lbl">Impersonation</div>
+          <div class="ioc-val ${ioc.impersonation && ioc.impersonation !== 'None' ? 'd' : ''}">
+            ${esc(ioc.impersonation || 'None')}
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation -->
+      <div class="rec-wrap">
+        <div class="block-title">Recommendation</div>
+        <div class="rec-box ${vc}">
+          <div class="rec-head">
+            ${vc === 'phish' ? '🚨 Action Required' : vc === 'sus' ? '⚠️ Proceed with Caution' : '✅ Looks Safe'}
+          </div>
+          ${esc(r.recommendation || '')}
+        </div>
+      </div>`;
+  }
+
+  /* ── XSS safety ──────────────────────────────────────────── */
+  function esc(str) {
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+</script>
+</body>
+</html>
